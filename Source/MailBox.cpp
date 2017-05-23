@@ -5,7 +5,7 @@
 
 bool CMailBox::IsPending() const
 {
-	return m_calls.size() != 0;
+	return m_calls.size_approx() != 0;
 }
 
 void CMailBox::WaitForCall()
@@ -31,19 +31,18 @@ void CMailBox::FlushCalls()
 
 void CMailBox::SendCall(const FunctionType& function, bool waitForCompletion)
 {
-	std::unique_lock<std::mutex> callLock(m_callMutex);
-
 	{
 		MESSAGE message;
 		message.function = function;
 		message.sync     = waitForCompletion;
-		m_calls.push_back(std::move(message));
+		m_calls.enqueue(std::move(message));
 	}
 	
 	m_waitCondition.notify_all();
 
 	if(waitForCompletion)
 	{
+		std::unique_lock<std::mutex> callLock(m_callMutex);
 		m_callDone = false;
 		while(!m_callDone)
 		{
@@ -70,7 +69,7 @@ void CMailBox::SendCall(FunctionType&& function)
 		MESSAGE message;
 		message.function = std::move(function);
 		message.sync     = false;
-		m_calls.push_back(std::move(message));
+		m_calls.enqueue(std::move(message));
 	}
 	
 	m_waitCondition.notify_all();
@@ -78,13 +77,9 @@ void CMailBox::SendCall(FunctionType&& function)
 
 void CMailBox::ReceiveCall()
 {
+	if(!IsPending()) return;
 	MESSAGE message;
-	{
-		std::lock_guard<std::mutex> waitLock(m_callMutex);
-		if(!IsPending()) return;
-		message = std::move(m_calls.front());
-		m_calls.pop_front();
-	}
+	if(!m_calls.try_dequeue(message)) return;
 	message.function();
 	if(message.sync)
 	{

@@ -4,6 +4,7 @@
 #include <deque>
 #include <mutex>
 #include <condition_variable>
+#include "readerwriterqueue.h"
 
 class CMailBox
 {
@@ -36,7 +37,8 @@ private:
 		bool			sync;
 	};
 
-	typedef std::deque<MESSAGE> FunctionCallQueue;
+	//typedef std::deque<MESSAGE> FunctionCallQueue;
+	typedef moodycamel::ReaderWriterQueue<MESSAGE> FunctionCallQueue;
 
 	FunctionCallQueue		m_calls;
 	std::mutex				m_callMutex;
